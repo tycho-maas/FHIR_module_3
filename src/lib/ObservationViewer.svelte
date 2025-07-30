@@ -20,7 +20,7 @@
 
     // Performance optimization: pagination
     let currentPage = 0;
-    let itemsPerPage = 20;
+    let itemsPerPage = 21;
     let displayedObservations: any[] = [];
     let allObservations: any[] = []; // Store all fetched observations
     let isLoadingMore = false;
@@ -40,9 +40,13 @@
      */
     const getVitals = async (forceRefresh = false): Promise<Bundle> => {
         const now = Date.now();
-        
+
         // Use cache if available and not expired (unless force refresh)
-        if (!forceRefresh && vitalObservations && (now - lastFetchTime) < CACHE_DURATION) {
+        if (
+            !forceRefresh &&
+            vitalObservations &&
+            now - lastFetchTime < CACHE_DURATION
+        ) {
             return vitalObservations;
         }
 
@@ -57,12 +61,14 @@
                 },
             );
             lastFetchTime = now;
-            
+
             // Check for pagination links
             const bundle = response.data;
-            nextUrl = bundle.link?.find(link => link.relation === 'next')?.url || null;
+            nextUrl =
+                bundle.link?.find((link) => link.relation === "next")?.url ||
+                null;
             hasMoreOnServer = !!nextUrl;
-            
+
             return bundle;
         } catch (err) {
             throw new Error(`Failed to fetch vital signs: ${err}`);
@@ -74,7 +80,7 @@
      */
     const fetchMoreFromServer = async (): Promise<Bundle | null> => {
         if (!nextUrl || isLoadingMore) return null;
-        
+
         isLoadingMore = true;
         try {
             const response = await axios.get<Bundle>(nextUrl, {
@@ -82,15 +88,17 @@
                     Authorization: `Bearer ${accessToken}`,
                 },
             });
-            
+
             const bundle = response.data;
             // Update next URL for further pagination
-            nextUrl = bundle.link?.find(link => link.relation === 'next')?.url || null;
+            nextUrl =
+                bundle.link?.find((link) => link.relation === "next")?.url ||
+                null;
             hasMoreOnServer = !!nextUrl;
-            
+
             return bundle;
         } catch (err) {
-            console.error('Failed to fetch more vitals:', err);
+            console.error("Failed to fetch more vitals:", err);
             return null;
         } finally {
             isLoadingMore = false;
@@ -112,7 +120,7 @@
                 return dateB - dateA;
             });
         }
-        
+
         // Show items up to current page
         const endIndex = (currentPage + 1) * itemsPerPage;
         displayedObservations = allObservations.slice(0, endIndex);
@@ -121,8 +129,12 @@
     const loadMore = async () => {
         // Check if we need more data from server
         const currentlyNeeded = (currentPage + 2) * itemsPerPage; // +2 because we're about to increment
-        
-        if (allObservations.length < currentlyNeeded && hasMoreOnServer && !isLoadingMore) {
+
+        if (
+            allObservations.length < currentlyNeeded &&
+            hasMoreOnServer &&
+            !isLoadingMore
+        ) {
             // Fetch more data from server
             const moreData = await fetchMoreFromServer();
             if (moreData) {
@@ -131,22 +143,33 @@
                 const sortedNewEntries = newEntries.sort((a, b) => {
                     const obsA = a.resource as Observation;
                     const obsB = b.resource as Observation;
-                    const dateA = new Date(obsA?.effectiveDateTime || "").getTime();
-                    const dateB = new Date(obsB?.effectiveDateTime || "").getTime();
+                    const dateA = new Date(
+                        obsA?.effectiveDateTime || "",
+                    ).getTime();
+                    const dateB = new Date(
+                        obsB?.effectiveDateTime || "",
+                    ).getTime();
                     return dateB - dateA;
                 });
-                
+
                 // Merge and re-sort all observations
-                allObservations = [...allObservations, ...sortedNewEntries].sort((a, b) => {
+                allObservations = [
+                    ...allObservations,
+                    ...sortedNewEntries,
+                ].sort((a, b) => {
                     const obsA = a.resource as Observation;
                     const obsB = b.resource as Observation;
-                    const dateA = new Date(obsA?.effectiveDateTime || "").getTime();
-                    const dateB = new Date(obsB?.effectiveDateTime || "").getTime();
+                    const dateA = new Date(
+                        obsA?.effectiveDateTime || "",
+                    ).getTime();
+                    const dateB = new Date(
+                        obsB?.effectiveDateTime || "",
+                    ).getTime();
                     return dateB - dateA;
                 });
             }
         }
-        
+
         currentPage++;
         updateDisplayedObservations();
     };
@@ -166,11 +189,18 @@
 
     /**
      * Formats a date/time string for display
-     * Converts ISO date strings to user-friendly local format
+     * Converts ISO date strings to European format (DD/MM/YYYY, 24h time)
      */
     const formatDateTime = (dateTime: string | undefined): string => {
         if (!dateTime) return "Unknown date"; // Handle missing dates gracefully
-        return new Date(dateTime).toLocaleString(); // Convert to local date/time format
+        return new Date(dateTime).toLocaleString("en-GB", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+        });
     };
 
     /**
@@ -314,18 +344,21 @@
                 resource: {
                     ...temperatureObservation,
                     id: response.data?.id || `temp-${Date.now()}`,
-                    effectiveDateTime: temperatureObservation.effectiveDateTime
-                }
+                    effectiveDateTime: temperatureObservation.effectiveDateTime,
+                },
             };
 
             // Add to the beginning of all observations for immediate display
             allObservations = [newEntry, ...allObservations];
-            
+
             // Update the bundle
             if (vitalObservations) {
-                vitalObservations.entry = [newEntry, ...(vitalObservations.entry || [])];
+                vitalObservations.entry = [
+                    newEntry,
+                    ...(vitalObservations.entry || []),
+                ];
             }
-            
+
             // Refresh displayed observations
             updateDisplayedObservations();
 
@@ -336,7 +369,7 @@
 
             // Background refresh to sync with server (no loading state)
             setTimeout(() => {
-                getVitals(true).then(bundle => {
+                getVitals(true).then((bundle) => {
                     vitalObservations = bundle;
                     allObservations = []; // Reset to force re-initialization
                     currentPage = 0; // Reset pagination
@@ -409,11 +442,11 @@
             <h2>Vital Sign Observations</h2>
             <p class="subtitle">Most recent vital sign observations</p>
         </div>
-        
+
         <div class="action-section">
             <div class="skeleton skeleton-button"></div>
         </div>
-        
+
         <div class="vitals-grid">
             {#each Array(6) as _}
                 <div class="vital-card skeleton-card">
@@ -545,11 +578,15 @@
                     </div>
                 {/each}
             </div>
-            
+
             <!-- Load more button for pagination -->
             {#if hasMore()}
                 <div class="load-more-section">
-                    <button class="load-more-btn" on:click={loadMore} disabled={isLoadingMore}>
+                    <button
+                        class="load-more-btn"
+                        on:click={loadMore}
+                        disabled={isLoadingMore}
+                    >
                         {#if isLoadingMore}
                             <span class="loading-spinner"></span>
                             Loading More...
@@ -754,8 +791,20 @@
 
     .vitals-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        grid-template-columns: repeat(3, 1fr);
         gap: 1.5rem;
+    }
+
+    @media (max-width: 1024px) {
+        .vitals-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (max-width: 640px) {
+        .vitals-grid {
+            grid-template-columns: 1fr;
+        }
     }
 
     .vital-card {
@@ -866,7 +915,12 @@
 
     /* Skeleton loading styles */
     .skeleton {
-        background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+        background: linear-gradient(
+            90deg,
+            #f0f0f0 25%,
+            #e0e0e0 50%,
+            #f0f0f0 75%
+        );
         background-size: 200% 100%;
         animation: shimmer 1.5s infinite;
         border-radius: 0.5rem;
@@ -883,7 +937,9 @@
         border: 1px solid var(--gray-200);
         border-radius: 0.75rem;
         padding: 1.5rem;
-        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+        box-shadow:
+            0 1px 3px 0 rgba(0, 0, 0, 0.1),
+            0 1px 2px 0 rgba(0, 0, 0, 0.06);
     }
 
     .skeleton-title {
