@@ -8,9 +8,22 @@
     export let patient: string;
 
     let patientResource: Patient | undefined = undefined;
+    let loading = true;
 
-    onMount(async () => {
-        const PatientResourceResponse = await axios.get<Patient>(
+    // Simple cache for patient data
+    let patientCache: { [key: string]: { data: Patient; timestamp: number } } = {};
+    const CACHE_DURATION = 300000; // 5 minutes cache for patient data
+
+    const getPatientData = async (): Promise<Patient> => {
+        const cacheKey = `${baseUrl}-${patient}`;
+        const now = Date.now();
+        
+        // Check cache first
+        if (patientCache[cacheKey] && (now - patientCache[cacheKey].timestamp) < CACHE_DURATION) {
+            return patientCache[cacheKey].data;
+        }
+
+        const response = await axios.get<Patient>(
             `${baseUrl}/Patient/${patient}`,
             {
                 headers: {
@@ -18,7 +31,24 @@
                 },
             },
         );
-        patientResource = PatientResourceResponse.data;
+
+        // Cache the result
+        patientCache[cacheKey] = {
+            data: response.data,
+            timestamp: now
+        };
+
+        return response.data;
+    };
+
+    onMount(async () => {
+        try {
+            patientResource = await getPatientData();
+        } catch (error) {
+            console.error('Failed to load patient data:', error);
+        } finally {
+            loading = false;
+        }
     });
 </script>
 
@@ -39,7 +69,11 @@
             >
         </div>
     {:else}
-        <p>Loading...</p>
+        <div class="patient-info">
+            <div class="skeleton skeleton-name"></div>
+            <div class="skeleton skeleton-detail"></div>
+            <div class="skeleton skeleton-detail"></div>
+        </div>
     {/if}
 </div>
 
@@ -102,6 +136,33 @@
         display: flex;
         align-items: center;
         gap: 0.5rem;
+    }
+
+    .skeleton {
+        background: linear-gradient(90deg, rgba(255,255,255,0.1) 25%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.1) 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        border-radius: 0.5rem;
+    }
+
+    .skeleton-name {
+        height: 1.5rem;
+        width: 200px;
+    }
+
+    .skeleton-detail {
+        height: 1.25rem;
+        width: 120px;
+        border-radius: 1rem;
+    }
+
+    @keyframes shimmer {
+        0% {
+            background-position: -200% 0;
+        }
+        100% {
+            background-position: 200% 0;
+        }
     }
 
     @keyframes spin {
